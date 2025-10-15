@@ -4,7 +4,7 @@
   "type": "module",
   "main": "ip-resolver.js",
   "scripts": {
-    "start": "node ip-resolver.js",
+    "start": "node ip-resolver.js && node server.js",
     "server": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
