@@ -120,6 +120,98 @@ async function verifyDomainLive(domain, ip) {
   }
 }
 
+// Helper function to check if a domain is known infrastructure/hosting
+function isKnownInfrastructureDomain(hostname) {
+  // Known hosting/infrastructure domain patterns
+  const infrastructureDomains = [
+    // AWS patterns
+    /\.amazonaws\.com$/,
+    /\.compute-\d+\.amazonaws\.com$/,
+    /\.ec2\.internal$/,
+    
+    // Google Cloud patterns
+    /\.googleusercontent\.com$/,
+    /\.googleapis\.com$/,
+    /\.c\.googlers\.com$/,
+    
+    // Microsoft Azure patterns
+    /\.cloudapp\.net$/,
+    /\.azurewebsites\.net$/,
+    /\.blob\.core\.windows\.net$/,
+    
+    // DigitalOcean patterns
+    /\.digitalocean\.com$/,
+    /\.droplet\.digitalocean\.com$/,
+    
+    // Other major hosting providers
+    /\.hostgator\.com$/,
+    /\.godaddy\.com$/,
+    /\.bluehost\.com$/,
+    /\.dreamhost\.com$/,
+    /\.siteground\.com$/,
+    /\.namecheap\.com$/,
+    
+    // Generic hosting patterns
+    /\.hosting\.com$/,
+    /\.webhost\.net$/,
+    /\.serverfarm\.com$/,
+    /\.datacenter\.net$/,
+    /\.cloud\.net$/,
+    /\.vps\.net$/,
+    
+    // ISP patterns
+    /\.comcast\.net$/,
+    /\.verizon\.net$/,
+    /\.att\.net$/,
+    /\.charter\.com$/,
+    /\.cox\.net$/,
+    /\.rr\.com$/,
+    /\.roadrunner\.com$/,
+    
+    // Generic infrastructure TLDs and patterns
+    /\.internal$/,
+    /\.local$/,
+    /\.lan$/,
+    /\.corp$/,
+    
+    // Reverse DNS patterns
+    /\d+-\d+-\d+-\d+\./,  // IP-like patterns anywhere in domain
+    
+    // Known generic hosting domain names
+    /^host-[a-z0-9]+\.net$/,      // Specifically catch host-h.net, etc.
+    /^server-[a-z0-9]+\.(com|net|org)$/,
+    /^vm-[a-z0-9]+\.(com|net|org)$/,
+    /^vps-[a-z0-9]+\.(com|net|org)$/,
+  ];
+  
+  // Check against all infrastructure patterns
+  for (const pattern of infrastructureDomains) {
+    if (pattern.test(hostname)) {
+      return true;
+    }
+  }
+  
+  // Check if the domain name itself indicates infrastructure
+  const parts = hostname.split('.');
+  if (parts.length >= 2) {
+    const domainPart = parts[parts.length - 2].toLowerCase();
+    
+    // Known infrastructure domain names
+    const infrastructureNames = [
+      'hosting', 'webhost', 'serverfarm', 'datacenter', 'cloudhost',
+      'vpshost', 'dedicated', 'shared', 'reseller', 'provider',
+      'infrastructure', 'server', 'compute', 'instance', 'node',
+      'cluster', 'grid', 'farm', 'rack', 'cabinet', 'facility'
+    ];
+    
+    if (infrastructureNames.includes(domainPart)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 // Helper function to extract domain name from hostname
 function extractDomainName(hostname) {
   if (!hostname) return null;
@@ -139,18 +231,55 @@ function extractDomainName(hostname) {
   
   // Skip generic hosting patterns and server hostnames
   const genericPatterns = [
+    // Basic hosting patterns
     /^host-[a-z0-9]+\./,           // host-a., host-1., host-h.
-    /^server-[a-z0-9]+\./,        // server-1., server-a.
-    /^[a-z0-9]+-[a-z0-9]+\./,     // Generic patterns like a1-b2.
-    /^vm-[a-z0-9]+\./,            // vm-123.
-    /^vps-[a-z0-9]+\./,           // vps-456.
-    /^node-[a-z0-9]+\./,          // node-789.
-    /^ip-[0-9-]+\./,              // ip-1-2-3-4.
-    /^[0-9]+-[0-9]+-[0-9]+-[0-9]+\./, // 192-168-1-1.
+    /^server-[a-z0-9-]+\./,       // server-1., server-alpha., server-web-01.
+    /^srv-[a-z0-9-]+\./,          // srv-1., srv-001., srv-web.
+    /^node-[a-z0-9-]+\./,         // node-1., node-east., node-prod.
+    /^vm-[a-z0-9-]+\./,           // vm-123., vm-prod., vm-web.
+    /^vps-[a-z0-9-]+\./,          // vps-789., vps-web., vps-db.
+    
+    // Cloud/Infrastructure patterns
+    /^ec2-[0-9-]+\./,             // ec2-1-2-3-4.
+    /^ip-[0-9-]+\./,              // ip-10-0-1-100.
     /^static-[0-9-]+\./,          // static-192-168-1-1.
-    /^dynamic-[0-9-]+\./,         // dynamic-...
-    /^[a-z]{1,3}[0-9]{1,6}\./,    // Short patterns like h48., srv123.
-    /^[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}\./, // IP-like hostnames
+    /^dynamic-[0-9-]+\./,         // dynamic-ip-123-456.
+    /^pool-[0-9-]+\./,            // pool-192-168-1-1.
+    /^dsl-line-[0-9-]+\./,        // dsl-line-123.
+    /^cable-modem-[0-9-]+\./,     // cable-modem-456.
+    
+    // Datacenter patterns
+    /^dc[0-9]+-[a-z0-9-]+\./,     // dc1-server-01.
+    /^rack-[0-9]+-[a-z0-9-]+\./,  // rack-5-slot-3.
+    /^cabinet-[a-z0-9-]+\./,      // cabinet-a-unit-12.
+    /^pod-[0-9]+-[a-z0-9-]+\./,   // pod-1-host-5.
+    
+    // Service-specific patterns
+    /^web-[0-9]+\./,              // web-1., web-2.
+    /^db-[a-z0-9-]+\./,           // db-primary., db-backup.
+    /^mail-relay-[0-9]+\./,       // mail-relay-1.
+    /^cdn-edge-[0-9]+\./,         // cdn-edge-01.
+    
+    // Geographic/Location patterns
+    /^[a-z]+-[a-z]+-[0-9]+-[a-z0-9-]+\./, // us-east-1-host., eu-west-2-node.
+    /^[a-z]{2,3}-datacenter-[0-9]+\./, // nyc-datacenter-5.
+    /^[a-z]{2,3}-[0-9]+-[a-z0-9-]+\./, // asia-1-server.
+    
+    // ISP/Hosting provider patterns
+    /^customer-[0-9]+\./,         // customer-123.
+    /^shared-[0-9]+\./,           // shared-456.
+    /^dedicated-[0-9]+\./,        // dedicated-789.
+    /^reseller-[0-9]+\./,         // reseller-001.
+    
+    // IP-like hostname patterns
+    /^[0-9]+-[0-9]+-[0-9]+-[0-9]+\./, // 192-168-1-1., 123-456-789-012.
+    /^[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}\./, // More specific IP patterns
+    
+    // Short generic patterns
+    /^[a-z]{1,3}[0-9]{1,6}\./,    // h48., srv123., a1., web2.
+    /^[0-9]{1,4}[a-z]{1,3}\./,    // 123srv., 456web.
+    
+    // Standard service patterns
     /^mail[0-9]*\./,              // mail., mail1., mail123.
     /^mx[0-9]*\./,                // mx., mx1., mx2.
     /^ns[0-9]*\./,                // ns., ns1., ns2.
@@ -159,6 +288,16 @@ function extractDomainName(hostname) {
     /^smtp[0-9]*\./,              // smtp., smtp1.
     /^pop[0-9]*\./,               // pop., pop3.
     /^imap[0-9]*\./,              // imap., imap4.
+    
+    // AWS/Cloud specific patterns
+    /^compute-[0-9-]+\./,         // compute-1.
+    /^instance-[0-9-]+\./,        // instance-123.
+    /^worker-[0-9-]+\./,          // worker-01.
+    /^master-[0-9-]+\./,          // master-01.
+    
+    // Generic alphanumeric patterns that look like infrastructure
+    /^[a-z0-9]{1,2}-[a-z0-9]{1,8}\./,  // h-net., a1-b2., vm-web.
+    /^[a-z]{1,4}[0-9]{1,4}-[a-z0-9]{1,8}\./,  // host1-web., srv2-db.
   ];
   
   // Special check for exact "host-h.net" pattern and similar
@@ -173,6 +312,11 @@ function extractDomainName(hostname) {
     if (pattern.test(host)) {
       return null; // Skip generic hostnames
     }
+  }
+  
+  // Check for known hosting/infrastructure domain patterns
+  if (isKnownInfrastructureDomain(host)) {
+    return null;
   }
   
   // Extract registrable domain using public suffix list
@@ -201,6 +345,11 @@ function extractDomainName(hostname) {
           /^[0-9]+$/,               // Pure numbers like "123"
           /^[a-z]+[0-9]+$/,         // Letter+numbers like "host1", "server2"
           /^[a-z0-9]+-[a-z0-9]+$/,  // Hyphenated patterns
+          /^host-[a-z0-9]+$/,       // host-h, host-1, etc.
+          /^server-[a-z0-9-]+$/,    // server-web-01, etc.
+          /^vm-[a-z0-9-]+$/,        // vm-prod-123, etc.
+          /^vps-[a-z0-9-]+$/,       // vps-web, etc.
+          /^node-[a-z0-9-]+$/,      // node-east, etc.
         ];
         
         for (const pattern of serverPatterns) {
@@ -209,6 +358,11 @@ function extractDomainName(hostname) {
           }
         }
       }
+    }
+    
+    // Final check: even if domain extraction worked, verify it's not an infrastructure domain
+    if (isKnownInfrastructureDomain(domain)) {
+      return null;
     }
     
     // Final check: filter out known hosting domain patterns
@@ -230,8 +384,22 @@ function extractDomainName(hostname) {
       
       // Additional check for generic patterns in the domain itself
       const domainName = parts[parts.length - 2];
-      if (!/^(host|server|mail|mx|ns|www|ftp|smtp|pop|imap|vm|vps|node|static|dynamic)[0-9]*$/.test(domainName) &&
-          !/^host-[a-z0-9]+$/.test(domainName)) {
+      const infrastructureKeywords = [
+        'host', 'server', 'mail', 'mx', 'ns', 'www', 'ftp', 'smtp', 'pop', 'imap',
+        'vm', 'vps', 'node', 'static', 'dynamic', 'hosting', 'webhost', 'serverfarm',
+        'datacenter', 'cloudhost', 'vpshost', 'dedicated', 'shared', 'reseller',
+        'provider', 'infrastructure', 'compute', 'instance', 'cluster', 'grid',
+        'farm', 'rack', 'cabinet', 'facility'
+      ];
+      
+      // Check if domain name is infrastructure-related
+      const isInfrastructure = infrastructureKeywords.some(keyword => 
+        domainName === keyword || 
+        new RegExp(`^${keyword}[0-9]*$`).test(domainName) ||
+        new RegExp(`^${keyword}-[a-z0-9]+$`).test(domainName)
+      );
+      
+      if (!isInfrastructure && !isKnownInfrastructureDomain(lastTwo)) {
         return lastTwo;
       }
     }
@@ -245,8 +413,22 @@ function extractDomainName(hostname) {
         
         // Check if it's not a generic pattern
         const domainName = parts[parts.length - 2];
-        if (!/^(host|server|mail|mx|ns|www|ftp|smtp|pop|imap|vm|vps|node|static|dynamic)[0-9]*$/.test(domainName) &&
-            !/^host-[a-z0-9]+$/.test(domainName)) {
+        const infrastructureKeywords = [
+          'host', 'server', 'mail', 'mx', 'ns', 'www', 'ftp', 'smtp', 'pop', 'imap',
+          'vm', 'vps', 'node', 'static', 'dynamic', 'hosting', 'webhost', 'serverfarm',
+          'datacenter', 'cloudhost', 'vpshost', 'dedicated', 'shared', 'reseller',
+          'provider', 'infrastructure', 'compute', 'instance', 'cluster', 'grid',
+          'farm', 'rack', 'cabinet', 'facility'
+        ];
+        
+        // Check if domain name is infrastructure-related
+        const isInfrastructure = infrastructureKeywords.some(keyword => 
+          domainName === keyword || 
+          new RegExp(`^${keyword}[0-9]*$`).test(domainName) ||
+          new RegExp(`^${keyword}-[a-z0-9]+$`).test(domainName)
+        );
+        
+        if (!isInfrastructure && !isKnownInfrastructureDomain(lastThree)) {
           return lastThree;
         }
       }
