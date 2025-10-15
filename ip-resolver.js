@@ -161,6 +161,13 @@ function extractDomainName(hostname) {
     /^imap[0-9]*\./,              // imap., imap4.
   ];
   
+  // Special check for exact "host-h.net" pattern and similar
+  if (/^host-[a-z0-9]+\.net$/.test(host) || 
+      /^host-[a-z0-9]+\.com$/.test(host) ||
+      /^host-[a-z0-9]+\.org$/.test(host)) {
+    return null; // Skip host-h.net, host-1.com, etc.
+  }
+  
   // Check if hostname matches any generic pattern
   for (const pattern of genericPatterns) {
     if (pattern.test(host)) {
@@ -204,6 +211,11 @@ function extractDomainName(hostname) {
       }
     }
     
+    // Final check: filter out known hosting domain patterns
+    if (isKnownHostingDomain(domain)) {
+      return null;
+    }
+    
     return domain;
   }
   
@@ -218,7 +230,8 @@ function extractDomainName(hostname) {
       
       // Additional check for generic patterns in the domain itself
       const domainName = parts[parts.length - 2];
-      if (!/^(host|server|mail|mx|ns|www|ftp|smtp|pop|imap|vm|vps|node|static|dynamic)[0-9]*$/.test(domainName)) {
+      if (!/^(host|server|mail|mx|ns|www|ftp|smtp|pop|imap|vm|vps|node|static|dynamic)[0-9]*$/.test(domainName) &&
+          !/^host-[a-z0-9]+$/.test(domainName)) {
         return lastTwo;
       }
     }
@@ -232,7 +245,8 @@ function extractDomainName(hostname) {
         
         // Check if it's not a generic pattern
         const domainName = parts[parts.length - 2];
-        if (!/^(host|server|mail|mx|ns|www|ftp|smtp|pop|imap|vm|vps|node|static|dynamic)[0-9]*$/.test(domainName)) {
+        if (!/^(host|server|mail|mx|ns|www|ftp|smtp|pop|imap|vm|vps|node|static|dynamic)[0-9]*$/.test(domainName) &&
+            !/^host-[a-z0-9]+$/.test(domainName)) {
           return lastThree;
         }
       }
@@ -240,6 +254,59 @@ function extractDomainName(hostname) {
   }
   
   return null;
+}
+
+// Helper function to identify known hosting/infrastructure domains
+function isKnownHostingDomain(domain) {
+  if (!domain) return false;
+  
+  const hostingPatterns = [
+    // Exact matches for common hosting domains
+    'host-h.net',
+    'host-a.net',
+    'host-b.net',
+    'host-c.net',
+    'host-d.net',
+    'host-e.net',
+    'host-f.net',
+    'host-g.net',
+    'host-i.net',
+    'host-j.net',
+    
+    // Pattern-based checks
+    /^host-[a-z0-9]+\.(net|com|org)$/,
+    /^server-[a-z0-9]+\.(net|com|org)$/,
+    /^vm-[a-z0-9]+\.(net|com|org)$/,
+    /^vps-[a-z0-9]+\.(net|com|org)$/,
+    /^[a-z]{1,3}[0-9]{1,6}\.(net|com|org)$/,  // Short patterns like h1.net, srv123.com
+    /^[0-9]+-[0-9]+-[0-9]+-[0-9]+\.(net|com|org)$/,  // IP-like patterns
+    
+    // Generic cloud/hosting provider patterns
+    /.*\.amazonaws\.com$/,
+    /.*\.googleusercontent\.com$/,
+    /.*\.cloudflare\.com$/,
+    /.*\.digitalocean\.com$/,
+    /.*\.linode\.com$/,
+    /.*\.vultr\.com$/,
+    /.*\.hetzner\.(com|de)$/,
+    /.*\.ovh\.(com|net)$/,
+  ];
+  
+  const lowerDomain = domain.toLowerCase();
+  
+  // Check exact matches
+  if (hostingPatterns.includes(lowerDomain)) {
+    return true;
+  }
+  
+  // Check regex patterns
+  for (const pattern of hostingPatterns) {
+    if (pattern instanceof RegExp && pattern.test(lowerDomain)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // Function to expand CIDR notation to individual IPs
@@ -309,43 +376,8 @@ async function reverseLookup(ip, timeout = 2000) {
             return null;
           }
           
-          // Extract registrable domain using public suffix list
-          const domain = getDomain(host);
-          
-          // Additional validation: ensure it's a proper domain name
-          if (domain && 
-              domain !== host && // Domain should be different from hostname (to avoid server names)
-              /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) && 
-              !/^\d+\.\d+\.\d+\.\d+$/.test(domain) && 
-              !domain.includes('in-addr') &&
-              domain.split('.').length >= 2) {
-            return domain;
-          }
-          
-          // If getDomain doesn't extract a different domain, try manual extraction
-          // Look for common patterns like subdomain.domain.tld
-          const parts = host.split('.');
-          if (parts.length >= 2) {
-            // Take last 2 parts if they form a valid domain
-            const lastTwo = parts.slice(-2).join('.');
-            if (/^[a-z0-9-]+\.[a-z]{2,}$/.test(lastTwo) && 
-                !lastTwo.includes('in-addr') &&
-                !lastTwo.includes('arpa')) {
-              return lastTwo;
-            }
-            
-            // Take last 3 parts if it looks like subdomain.domain.tld
-            if (parts.length >= 3) {
-              const lastThree = parts.slice(-3).join('.');
-              if (/^[a-z0-9-]+\.[a-z0-9-]+\.[a-z]{2,}$/.test(lastThree) && 
-                  !lastThree.includes('in-addr') &&
-                  !lastThree.includes('arpa')) {
-                return lastThree;
-              }
-            }
-          }
-          
-          return null;
+          // Use the same extractDomainName function for consistency
+          return extractDomainName(h);
         })
         .filter(Boolean)
     ));
