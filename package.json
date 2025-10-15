@@ -1,0 +1,22 @@
+{
+  "name": "ip-conv",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "ip-resolver.js",
+  "scripts": {
+    "start": "node ip-resolver.js",
+    "server": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "netmask": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "tldts": "^6.1.22"
+  }
+}
